@@ -231,6 +231,33 @@ export const createNotesTable = async (overrideName?: string) => {
   return { notesTable, time: performance.now() - start };
 };
 
+/**
+ * Check if the index exists and has data
+ */
+const isIndexReady = async (): Promise<boolean> => {
+  try {
+    const tables = await db.tableNames();
+    if (!tables.includes("notes")) return false;
+    const table = await db.openTable("notes");
+    const count = await table.countRows();
+    return count > 0;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Ensure notes are indexed before searching
+ * If index doesn't exist or is empty, performs indexing automatically
+ */
+const ensureIndexed = async (): Promise<void> => {
+  const ready = await isIndexReady();
+  if (!ready) {
+    const { notesTable } = await createNotesTable();
+    await indexNotes(notesTable);
+  }
+};
+
 const createNote = async (title: string, content: string) => {
   // Escape special characters and convert newlines to \n
   const escapedTitle = title.replace(/[\\'"]/g, "\\$&");
@@ -282,6 +309,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request, c) => {
         `Indexed ${chunks} notes chunks in ${time}ms. You can now search for them using the "search-notes" tool.`
       );
     } else if (name === "search-notes") {
+      // Auto-index if needed (no manual index-notes required)
+      await ensureIndexed();
       const { query } = QueryNotesSchema.parse(args);
       const combinedResults = await searchAndCombineResults(notesTable, query);
       return createTextResponse(JSON.stringify(combinedResults));
