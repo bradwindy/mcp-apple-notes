@@ -144,6 +144,26 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["title", "content"],
         },
       },
+      {
+        name: "purge-index",
+        description:
+          "Purge the vector index and start fresh. Use this if the index becomes corrupted or you want to rebuild it.",
+        inputSchema: {
+          type: "object",
+          properties: {},
+          required: [],
+        },
+      },
+      {
+        name: "index-stats",
+        description:
+          "Get statistics about the indexed notes including chunk count, note count, and index size.",
+        inputSchema: {
+          type: "object",
+          properties: {},
+          required: [],
+        },
+      },
     ],
   };
 });
@@ -344,6 +364,42 @@ server.setRequestHandler(CallToolRequestSchema, async (request, c) => {
       const { query } = QueryNotesSchema.parse(args);
       const combinedResults = await searchAndCombineResults(notesTable, query);
       return createTextResponse(JSON.stringify(combinedResults));
+    } else if (name === "purge-index") {
+      try {
+        await db.dropTable("notes");
+        return createTextResponse(
+          "Vector index purged successfully. The index will be rebuilt automatically on next search."
+        );
+      } catch (error) {
+        return createTextResponse(
+          "No index found to purge, or index was already empty."
+        );
+      }
+    } else if (name === "index-stats") {
+      try {
+        const tables = await db.tableNames();
+        if (!tables.includes("notes")) {
+          return createTextResponse(
+            "No index found. Search for something to trigger automatic indexing."
+          );
+        }
+        const table = await db.openTable("notes");
+        const chunkCount = await table.countRows();
+        const notesDb = new AppleNotesDB();
+        const totalNotes = notesDb.listNotes().length;
+        notesDb.close();
+
+        return createTextResponse(
+          `Index Statistics:\n` +
+            `- Indexed chunks: ${chunkCount}\n` +
+            `- Total notes in Apple Notes: ${totalNotes}\n` +
+            `- Embeddings model: ${config.embeddingsModel}\n` +
+            `- Chunk size: ${config.chunkSize} chars\n` +
+            `- Chunk overlap: ${config.chunkOverlap} chars`
+        );
+      } catch (error) {
+        return createTextResponse(`Error getting stats: ${error.message}`);
+      }
     } else {
       throw new Error(`Unknown tool: ${name}`);
     }
