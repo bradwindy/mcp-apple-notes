@@ -75,19 +75,52 @@ export class AppleNotesDB {
   private extractTextFromProtobuf(data: Buffer): string {
     const str = data.toString("utf-8");
     // Remove binary/control characters but keep readable text and newlines
-    return str
+    const lines = str
       .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "\n")
       .replace(/\uFFFD/g, "") // Remove Unicode replacement characters
       .split("\n")
       .map(line => line.trim())
-      .filter(line => line.length > 0)
-      .filter(line => {
-        // Filter out lines that are mostly binary garbage
-        const printableChars = line.replace(/[^\x20-\x7E\u00A0-\uFFFF]/g, "").length;
-        return printableChars / line.length > 0.8;
-      })
-      .join("\n")
-      .trim();
+      .filter(line => line.length > 0);
+
+    // Find where actual content ends - protobuf metadata starts with repeated short garbage lines
+    const goodLines: string[] = [];
+    let consecutiveGarbageCount = 0;
+    const maxConsecutiveGarbage = 3;
+
+    for (const line of lines) {
+      const isGarbage = this.isGarbageLine(line);
+
+      if (isGarbage) {
+        consecutiveGarbageCount++;
+        if (consecutiveGarbageCount >= maxConsecutiveGarbage) {
+          // We've hit the metadata section, stop here
+          break;
+        }
+      } else {
+        // Reset counter and add any skipped lines that might have been false positives
+        consecutiveGarbageCount = 0;
+        goodLines.push(line);
+      }
+    }
+
+    return goodLines.join("\n").trim();
+  }
+
+  /**
+   * Check if a line looks like protobuf garbage rather than actual content
+   */
+  private isGarbageLine(line: string): boolean {
+    // Very short lines with special characters are likely garbage
+    if (line.length < 3) return true;
+
+    // Lines that are mostly protobuf markers
+    if (/^[*JgG,\s\d\-\.]+$/.test(line)) return true;
+
+    // Lines with too many non-printable or unusual characters
+    const cleanLine = line.replace(/[^\x20-\x7E\u00A0-\u024F\u1E00-\u1EFF\u2000-\u206F\u2600-\u27BF\uFE00-\uFE0F\u{1F300}-\u{1F9FF}]/gu, "");
+    const threshold = line.length < 10 ? 0.98 : 0.90;
+
+    return cleanLine.length / line.length < threshold;
   }
 
   /**
