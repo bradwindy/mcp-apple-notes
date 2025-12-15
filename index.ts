@@ -10,6 +10,7 @@ import { runJxa } from "run-jxa";
 import path from "node:path";
 import os from "node:os";
 import TurndownService from "turndown";
+import { AppleNotesDB } from "./src/apple-notes-db";
 import {
   EmbeddingFunction,
   LanceSchema,
@@ -144,90 +145,69 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   };
 });
 
-const getNotes = async () => {
-  const notes = await runJxa(`
-    const app = Application('Notes');
-app.includeStandardAdditions = true;
-const notes = Array.from(app.notes());
-const titles = notes.map(note => note.properties().name);
-return titles;
-  `);
-
-  return notes as string[];
+const getNotes = async (): Promise<string[]> => {
+  const notesDb = new AppleNotesDB();
+  try {
+    const notes = notesDb.listNotes();
+    return notes.map((n) => n.title);
+  } finally {
+    notesDb.close();
+  }
 };
 
 const getNoteDetailsByTitle = async (title: string) => {
-  const note = await runJxa(
-    `const app = Application('Notes');
-    const title = "${title}"
-    
-    try {
-        const note = app.notes.whose({name: title})[0];
-        
-        const noteInfo = {
-            title: note.name(),
-            content: note.body(),
-            creation_date: note.creationDate().toLocaleString(),
-            modification_date: note.modificationDate().toLocaleString()
-        };
-        
-        return JSON.stringify(noteInfo);
-    } catch (error) {
-        return "{}";
-    }`
-  );
-
-  return JSON.parse(note as string) as {
-    title: string;
-    content: string;
-    creation_date: string;
-    modification_date: string;
-  };
+  const notesDb = new AppleNotesDB();
+  try {
+    const note = notesDb.getNoteByTitle(title);
+    if (!note) {
+      return {
+        title: "",
+        content: "",
+        creation_date: "",
+        modification_date: "",
+      };
+    }
+    return {
+      title: note.title,
+      content: note.content,
+      creation_date: note.creationDate.toLocaleString(),
+      modification_date: note.modificationDate.toLocaleString(),
+    };
+  } finally {
+    notesDb.close();
+  }
 };
 
 export const indexNotes = async (notesTable: any) => {
   const start = performance.now();
   let report = "";
-  const allNotes = (await getNotes()) || [];
-  const notesDetails = await Promise.all(
-    allNotes.map((note) => {
-      try {
-        return getNoteDetailsByTitle(note);
-      } catch (error) {
-        report += `Error getting note details for ${note}: ${error.message}\n`;
-        return {} as any;
-      }
-    })
-  );
 
-  const chunks = notesDetails
-    .filter((n) => n.title)
-    .map((node) => {
-      try {
-        return {
-          ...node,
-          content: turndown(node.content || ""), // this sometimes fails
-        };
-      } catch (error) {
-        return node;
-      }
-    })
-    .map((note, index) => ({
-      id: index.toString(),
-      title: note.title,
-      content: note.content, // turndown(note.content || ""),
-      creation_date: note.creation_date,
-      modification_date: note.modification_date,
-    }));
+  // Use SQLite directly for better performance
+  const notesDb = new AppleNotesDB();
+  try {
+    const allNotesWithContent = notesDb.getAllNotesWithContent();
 
-  await notesTable.add(chunks);
+    const chunks = allNotesWithContent
+      .filter((n) => n.title)
+      .map((note, index) => ({
+        id: index.toString(),
+        title: note.title,
+        content: note.content, // Already plain text from SQLite/protobuf
+        creation_date: note.creationDate.toLocaleString(),
+        modification_date: note.modificationDate.toLocaleString(),
+      }));
 
-  return {
-    chunks: chunks.length,
-    report,
-    allNotes: allNotes.length,
-    time: performance.now() - start,
-  };
+    await notesTable.add(chunks);
+
+    return {
+      chunks: chunks.length,
+      report,
+      allNotes: allNotesWithContent.length,
+      time: performance.now() - start,
+    };
+  } finally {
+    notesDb.close();
+  }
 };
 
 export const createNotesTable = async (overrideName?: string) => {
@@ -283,15 +263,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request, c) => {
       await createNote(title, content);
       return createTextResponse(`Created note "${title}" successfully.`);
     } else if (name === "list-notes") {
+      const titles = await getNotes();
       return createTextResponse(
-        `There are ${await notesTable.countRows()} notes in your Apple Notes database.`
+        `Found ${titles.length} notes:\n\n${titles.join("\n")}`
       );
     } else if (name == "get-note") {
       try {
         const { title } = GetNoteSchema.parse(args);
         const note = await getNoteDetailsByTitle(title);
 
-        return createTextResponse(`${note}`);
+        return createTextResponse(JSON.stringify(note, null, 2));
       } catch (error) {
         return createTextResponse(error.message);
       }
