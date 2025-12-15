@@ -1,17 +1,18 @@
 {
-  "name": "apple-notes-mcp",
-  "version": "1.0.0",
-  "author": "",
+  "name": "mcp-apple-notes",
+  "version": "1.1.0",
+  "author": "Rafal Wilinski",
   "type": "module",
   "main": "index.ts",
-  "description": "",
-  "keywords": [],
-  "license": "ISC",
+  "description": "Semantic search and RAG over Apple Notes using local embeddings",
+  "keywords": ["apple", "notes", "mcp", "search", "rag", "embeddings"],
+  "license": "MIT",
   "scripts": {
-    "build": "bun build index.ts --outdir dist --target node",
+    "build": "bun build index.ts --outdir dist --target node --minify",
     "start": "bun index.ts",
     "purge-db": "rm -rf ~/.mcp-apple-notes",
-    "test": "npx tsx index.test.ts"
+    "test": "bun test",
+    "pack": "zip -r mcp-apple-notes.mcpb manifest.json index.ts src/ node_modules/ package.json images/ README.md NotesMCPHelper.app -x '*.git*' -x '*/.DS_Store'"
   },
   "exports": {
     ".": "./index.ts"

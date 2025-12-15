@@ -1,0 +1,79 @@
+{
+  "manifest_version": "0.3",
+  "name": "mcp-apple-notes",
+  "display_name": "Apple Notes MCP",
+  "version": "1.1.0",
+  "description": "Semantic search and RAG over Apple Notes using local embeddings",
+  "long_description": "A Model Context Protocol server that enables semantic search over your Apple Notes using on-device embeddings. Search, retrieve, and create notes directly from Claude conversations. Features include vector search with LanceDB, full-text search, automatic indexing, and configurable chunking.",
+  "author": {
+    "name": "Rafal Wilinski",
+    "url": "https://github.com/RafalWilinski"
+  },
+  "homepage": "https://github.com/RafalWilinski/mcp-apple-notes",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RafalWilinski/mcp-apple-notes"
+  },
+  "license": "MIT",
+  "keywords": ["apple", "notes", "search", "rag", "embeddings", "semantic-search"],
+  "icon": "images/logo.png",
+  "server": {
+    "type": "binary",
+    "entry_point": "NotesMCPHelper.app/Contents/MacOS/notes-mcp-helper",
+    "mcp_config": {
+      "command": "${bundle_path}/NotesMCPHelper.app/Contents/MacOS/notes-mcp-helper",
+      "args": ["${bundle_path}/index.ts"],
+      "env": {}
+    }
+  },
+  "tools": [
+    {
+      "name": "list-notes",
+      "description": "List all Apple Notes titles"
+    },
+    {
+      "name": "get-note",
+      "description": "Get full content of a note by title"
+    },
+    {
+      "name": "search-notes",
+      "description": "Semantic search across all notes using vector embeddings"
+    },
+    {
+      "name": "index-notes",
+      "description": "Manually re-index all notes for semantic search"
+    },
+    {
+      "name": "create-note",
+      "description": "Create a new Apple Note with HTML content"
+    },
+    {
+      "name": "purge-index",
+      "description": "Clear the vector index to rebuild from scratch"
+    },
+    {
+      "name": "index-stats",
+      "description": "Get statistics about indexed notes and configuration"
+    }
+  ],
+  "user_config": {
+    "EMBEDDINGS_MODEL": {
+      "type": "string",
+      "description": "HuggingFace model for embeddings",
+      "default": "Xenova/all-MiniLM-L6-v2"
+    },
+    "CHUNK_SIZE": {
+      "type": "string",
+      "description": "Maximum characters per chunk",
+      "default": "1000"
+    },
+    "CHUNK_OVERLAP": {
+      "type": "string",
+      "description": "Overlap between chunks",
+      "default": "100"
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin"]
+  }
+}
