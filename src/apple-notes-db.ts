@@ -23,13 +23,14 @@ export interface NoteListItem {
 
 export class AppleNotesDB {
   private db: Database;
-  private static DB_PATH = path.join(
+  private static DEFAULT_DB_PATH = path.join(
     os.homedir(),
     "Library/Group Containers/group.com.apple.notes/NoteStore.sqlite"
   );
 
   constructor(dbPath?: string) {
-    const actualPath = dbPath || AppleNotesDB.DB_PATH;
+    // Priority: explicit path > env var > default path
+    const actualPath = dbPath || process.env.APPLE_NOTES_DB_PATH || AppleNotesDB.DEFAULT_DB_PATH;
     this.db = new Database(actualPath, { readonly: true });
   }
 
@@ -48,19 +49,19 @@ export class AppleNotesDB {
    * Parse gzipped protobuf note content to extract text
    * Apple Notes uses a proprietary protobuf format
    */
-  private parseNoteContent(data: Buffer | null): string {
+  private parseNoteContent(data: Buffer | Uint8Array | null): string {
     if (!data) return "";
 
     try {
+      // Handle Uint8Array from bun:sqlite
+      const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
+
       // Check for gzip magic bytes (1F 8B)
-      if (data[0] === 0x1f && data[1] === 0x8b) {
-        const decompressed = pako.ungzip(data);
-        // The decompressed data is a protobuf
-        // Extract text by finding string-like sequences
-        // Apple's protobuf has the text at specific field positions
+      if (buffer[0] === 0x1f && buffer[1] === 0x8b) {
+        const decompressed = pako.ungzip(buffer);
         return this.extractTextFromProtobuf(Buffer.from(decompressed));
       }
-      return data.toString("utf-8");
+      return buffer.toString("utf-8");
     } catch (error) {
       console.error("Error parsing note content:", error);
       return "";
@@ -69,68 +70,23 @@ export class AppleNotesDB {
 
   /**
    * Extract readable text from Apple Notes protobuf
-   * This is a simplified parser that extracts the main text content
+   * Apple uses a proprietary format - we extract readable text sequences
    */
   private extractTextFromProtobuf(data: Buffer): string {
-    // Apple Notes protobuf structure:
-    // Field 2 (string): Note text content
-    // We'll do a simple extraction looking for UTF-8 text
-    try {
-      const text: string[] = [];
-      let i = 0;
-
-      while (i < data.length) {
-        // Look for wire type 2 (length-delimited, which includes strings)
-        const byte = data[i];
-        const wireType = byte & 0x07;
-        const fieldNumber = byte >> 3;
-
-        if (wireType === 2 && i + 1 < data.length) {
-          // Read varint length
-          let length = 0;
-          let shift = 0;
-          let j = i + 1;
-
-          while (j < data.length && (data[j] & 0x80) !== 0) {
-            length |= (data[j] & 0x7f) << shift;
-            shift += 7;
-            j++;
-          }
-          if (j < data.length) {
-            length |= (data[j] & 0x7f) << shift;
-            j++;
-          }
-
-          // Check if this looks like text (field 2 is typically the note text)
-          if (fieldNumber === 2 && length > 0 && length < 100000 && j + length <= data.length) {
-            const possibleText = data.slice(j, j + length).toString("utf-8");
-            // Filter for actual readable text
-            if (possibleText.length > 0 && /^[\x20-\x7E\n\r\t\u00A0-\uFFFF]+$/.test(possibleText)) {
-              text.push(possibleText);
-            }
-          }
-          i = j + length;
-        } else {
-          i++;
-        }
-      }
-
-      return text.join("\n").trim();
-    } catch (error) {
-      // Fallback: extract any UTF-8 looking sequences
-      return this.extractTextFallback(data);
-    }
-  }
-
-  /**
-   * Fallback text extraction - finds readable text sequences
-   */
-  private extractTextFallback(data: Buffer): string {
-    const str = data.toString("utf-8", 0, data.length);
-    // Remove binary garbage, keep readable text
+    const str = data.toString("utf-8");
+    // Remove binary/control characters but keep readable text and newlines
     return str
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, " ")
-      .replace(/\s+/g, " ")
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "\n")
+      .replace(/\uFFFD/g, "") // Remove Unicode replacement characters
+      .split("\n")
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .filter(line => {
+        // Filter out lines that are mostly binary garbage
+        const printableChars = line.replace(/[^\x20-\x7E\u00A0-\uFFFF]/g, "").length;
+        return printableChars / line.length > 0.8;
+      })
+      .join("\n")
       .trim();
   }
 
