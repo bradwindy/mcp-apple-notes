@@ -10,6 +10,7 @@ import { runJxa } from "run-jxa";
 import path from "node:path";
 import os from "node:os";
 import { AppleNotesDB } from "./src/apple-notes-db";
+import { chunkText } from "./src/text-chunker";
 import {
   EmbeddingFunction,
   LanceSchema,
@@ -178,28 +179,55 @@ const getNoteDetailsByTitle = async (title: string) => {
 
 export const indexNotes = async (notesTable: any) => {
   const start = performance.now();
-  let report = "";
 
   // Use SQLite directly for better performance
   const notesDb = new AppleNotesDB();
   try {
     const allNotesWithContent = notesDb.getAllNotesWithContent();
 
-    const chunks = allNotesWithContent
-      .filter((n) => n.title)
-      .map((note, index) => ({
-        id: index.toString(),
-        title: note.title,
-        content: note.content, // Already plain text from SQLite/protobuf
-        creation_date: note.creationDate.toLocaleString(),
-        modification_date: note.modificationDate.toLocaleString(),
-      }));
+    // Chunk each note's content for better embeddings
+    const chunks: {
+      id: string;
+      title: string;
+      content: string;
+      creation_date: string;
+      modification_date: string;
+    }[] = [];
+
+    let chunkIndex = 0;
+    for (const note of allNotesWithContent.filter((n) => n.title)) {
+      const contentChunks = chunkText(note.content, {
+        maxChunkSize: 1000,
+        overlap: 100,
+      });
+
+      // If no chunks (empty content), create one entry with the title
+      if (contentChunks.length === 0) {
+        chunks.push({
+          id: `${chunkIndex++}`,
+          title: note.title,
+          content: note.title, // Use title as content for empty notes
+          creation_date: note.creationDate.toLocaleString(),
+          modification_date: note.modificationDate.toLocaleString(),
+        });
+      } else {
+        // Create a chunk entry for each content chunk
+        for (const contentChunk of contentChunks) {
+          chunks.push({
+            id: `${chunkIndex++}`,
+            title: note.title,
+            content: contentChunk,
+            creation_date: note.creationDate.toLocaleString(),
+            modification_date: note.modificationDate.toLocaleString(),
+          });
+        }
+      }
+    }
 
     await notesTable.add(chunks);
 
     return {
       chunks: chunks.length,
-      report,
       allNotes: allNotesWithContent.length,
       time: performance.now() - start,
     };

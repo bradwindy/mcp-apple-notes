@@ -86,7 +86,7 @@ tail -n 50 -f ~/Library/Logs/Claude/mcp.log
 ## Todos
 
 - [x] ~~Apple notes are returned in the HTML format~~ - Now using direct SQLite access which returns plain text
-- [ ] Chunk source content using recursive text splitter or markdown text splitter
+- [x] Chunk source content using text splitter with sentence boundary detection
 - [ ] Add an option to use custom embeddings model
 - [ ] More control over DB - purge, custom queries, etc.
 - [x] Storing notes in Notes via Claude
