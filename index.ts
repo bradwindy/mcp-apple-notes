@@ -9,7 +9,6 @@ import * as lancedb from "@lancedb/lancedb";
 import { runJxa } from "run-jxa";
 import path from "node:path";
 import os from "node:os";
-import TurndownService from "turndown";
 import { AppleNotesDB } from "./src/apple-notes-db";
 import {
   EmbeddingFunction,
@@ -19,7 +18,6 @@ import {
 import { type Float, Float32, Utf8 } from "apache-arrow";
 import { pipeline } from "@huggingface/transformers";
 
-const { turndown } = new TurndownService();
 const db = await lancedb.connect(
   path.join(os.homedir(), ".mcp-apple-notes", "data")
 );
