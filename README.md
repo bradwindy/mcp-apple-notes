@@ -100,9 +100,23 @@ You can customize behavior using environment variables in your Claude Desktop co
 | `CHUNK_OVERLAP` | `100` | Overlap between chunks |
 | `APPLE_NOTES_DB_PATH` | (system default) | Custom path to Notes database |
 
+## Available Tools
+
+The MCP server exposes the following tools to Claude:
+
+| Tool | Description |
+|------|-------------|
+| `list-notes` | List all Apple Notes titles |
+| `get-note` | Get full content of a note by title |
+| `search-notes` | Semantic search across all notes (auto-indexes on first use) |
+| `create-note` | Create a new Apple Note with HTML content |
+| `index-notes` | Manually re-index all notes |
+| `purge-index` | Clear the vector index to rebuild from scratch |
+| `index-stats` | Get statistics about indexed notes and configuration |
+
 ## Troubleshooting
 
-To see logs:
+### Viewing Logs
 
 ```bash
 tail -n 50 -f ~/Library/Logs/Claude/mcp-server-local-machine.log
@@ -110,11 +124,45 @@ tail -n 50 -f ~/Library/Logs/Claude/mcp-server-local-machine.log
 tail -n 50 -f ~/Library/Logs/Claude/mcp.log
 ```
 
-## Todos
+### Common Issues
 
-- [x] ~~Apple notes are returned in the HTML format~~ - Now using direct SQLite access which returns plain text
-- [x] Chunk source content using text splitter with sentence boundary detection
-- [x] Add an option to use custom embeddings model (via EMBEDDINGS_MODEL env var)
-- [ ] More control over DB - purge, custom queries, etc.
-- [x] Storing notes in Notes via Claude
-- [x] Automatic indexing (no manual index-notes required)
+**"Permission denied" or empty note list:**
+- Ensure NotesMCPHelper.app has Full Disk Access in System Settings
+- Try removing and re-adding the app to Full Disk Access
+
+**Index seems stale or notes not found:**
+- Ask Claude to run `purge-index` then search again
+- The index will rebuild automatically
+
+**Slow first search:**
+- First search downloads the embeddings model (~80MB)
+- Subsequent searches are much faster
+
+## Development
+
+```bash
+# Run tests
+bun test
+
+# Start the server directly
+bun start
+
+# Build for distribution
+bun run build
+
+# Create MCPB package
+bun run pack
+
+# Clear local vector database
+bun run purge-db
+```
+
+## License
+
+MIT - see [LICENSE](LICENSE) for details.
+
+## Acknowledgments
+
+- [LanceDB](https://lancedb.github.io/lancedb/) for vector storage
+- [HuggingFace Transformers](https://huggingface.co/docs/transformers.js) for on-device embeddings
+- [Model Context Protocol](https://modelcontextprotocol.io/) for the MCP specification
