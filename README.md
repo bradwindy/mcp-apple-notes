@@ -73,6 +73,33 @@ Important: Replace `<YOUR_USER_NAME>` with your actual username and update the p
 
 4. Start using your notes! Just ask Claude to search your notes - indexing happens automatically on first search.
 
+## Configuration
+
+You can customize behavior using environment variables in your Claude Desktop config:
+
+```json
+{
+  "mcpServers": {
+    "local-machine": {
+      "command": "/Users/<YOUR_USER_NAME>/mcp-apple-notes/NotesMCPHelper.app/Contents/MacOS/notes-mcp-helper",
+      "args": ["/Users/<YOUR_USER_NAME>/mcp-apple-notes/index.ts"],
+      "env": {
+        "EMBEDDINGS_MODEL": "Xenova/all-MiniLM-L6-v2",
+        "CHUNK_SIZE": "1000",
+        "CHUNK_OVERLAP": "100"
+      }
+    }
+  }
+}
+```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `EMBEDDINGS_MODEL` | `Xenova/all-MiniLM-L6-v2` | HuggingFace model for embeddings |
+| `CHUNK_SIZE` | `1000` | Maximum characters per chunk |
+| `CHUNK_OVERLAP` | `100` | Overlap between chunks |
+| `APPLE_NOTES_DB_PATH` | (system default) | Custom path to Notes database |
+
 ## Troubleshooting
 
 To see logs:
@@ -87,7 +114,7 @@ tail -n 50 -f ~/Library/Logs/Claude/mcp.log
 
 - [x] ~~Apple notes are returned in the HTML format~~ - Now using direct SQLite access which returns plain text
 - [x] Chunk source content using text splitter with sentence boundary detection
-- [ ] Add an option to use custom embeddings model
+- [x] Add an option to use custom embeddings model (via EMBEDDINGS_MODEL env var)
 - [ ] More control over DB - purge, custom queries, etc.
 - [x] Storing notes in Notes via Claude
 - [x] Automatic indexing (no manual index-notes required)

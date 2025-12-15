@@ -11,6 +11,7 @@ import path from "node:path";
 import os from "node:os";
 import { AppleNotesDB } from "./src/apple-notes-db";
 import { chunkText } from "./src/text-chunker";
+import { loadConfig } from "./src/config";
 import {
   EmbeddingFunction,
   LanceSchema,
@@ -19,12 +20,15 @@ import {
 import { type Float, Float32, Utf8 } from "apache-arrow";
 import { pipeline } from "@huggingface/transformers";
 
+// Load configuration
+const config = loadConfig();
+
 const db = await lancedb.connect(
   path.join(os.homedir(), ".mcp-apple-notes", "data")
 );
 const extractor = await pipeline(
   "feature-extraction",
-  "Xenova/all-MiniLM-L6-v2"
+  config.embeddingsModel
 );
 
 @register("openai")
@@ -197,8 +201,8 @@ export const indexNotes = async (notesTable: any) => {
     let chunkIndex = 0;
     for (const note of allNotesWithContent.filter((n) => n.title)) {
       const contentChunks = chunkText(note.content, {
-        maxChunkSize: 1000,
-        overlap: 100,
+        maxChunkSize: config.chunkSize,
+        overlap: config.chunkOverlap,
       });
 
       // If no chunks (empty content), create one entry with the title
