@@ -9,10 +9,10 @@
     "name": "Rafal Wilinski",
     "url": "https://github.com/RafalWilinski"
   },
-  "homepage": "https://github.com/RafalWilinski/mcp-apple-notes",
+  "homepage": "https://github.com/bradwindy/mcp-apple-notes",
   "repository": {
     "type": "git",
-    "url": "https://github.com/RafalWilinski/mcp-apple-notes"
+    "url": "https://github.com/bradwindy/mcp-apple-notes"
   },
   "license": "MIT",
   "keywords": ["apple", "notes", "search", "rag", "embeddings", "semantic-search"],
